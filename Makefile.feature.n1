@@ -1,0 +1,17 @@
+#--------------------------------------------------------------------------
+# n1: features for keras, lr, fm
+#--------------------------------------------------------------------------
+include Makefile
+
+FEATURE_NAME := n1
+
+FEATURE_TRN := $(DIR_FEATURE)/$(FEATURE_NAME).trn.sps
+FEATURE_TST := $(DIR_FEATURE)/$(FEATURE_NAME).tst.sps
+FEATURE_MAP := $(DIR_FEATURE)/$(FEATURE_NAME).fmap
+
+$(FEATURE_TRN) $(FEATURE_TST) $(FEATURE_MAP): $(DATA_TRN) $(DATA_TST) | $(DIR_FEATURE)
+	python ./src/generate_$(FEATURE_NAME).py --train-file $< \
+                                             --test-file $(lastword $^) \
+                                             --train-feature-file $(FEATURE_TRN) \
+                                             --test-feature-file $(FEATURE_TST) \
+                                             --feature-map-file $(FEATURE_MAP)

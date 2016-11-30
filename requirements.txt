@@ -1,0 +1,8 @@
+numpy
+scipy
+pandas
+xgboost
+keras
+cython
+h5py
+kaggler
