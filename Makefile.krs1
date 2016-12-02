@@ -1,7 +1,7 @@
 include Makefile.feature.n1
 
 N = 55
-ALGO_NAME := kr1
+ALGO_NAME := krs1
 MODEL_NAME := $(ALGO_NAME)_$(FEATURE_NAME)
 
 METRIC_VAL := $(DIR_METRIC)/$(MODEL_NAME).val.txt
@@ -19,7 +19,7 @@ retrain: clean_$(ALGO_NAME) submission
 
 $(PREDICT_TST) $(PREDICT_VAL): $(FEATURE_TRN) $(FEATURE_TST) \
                                    | $(DIR_VAL) $(DIR_TST)
-	python ./src/train_predict_kr1.py --train-file $< \
+	python ./src/train_predict_krs1.py --train-file $< \
                                       --test-file $(word 2, $^) \
                                       --predict-valid-file $(PREDICT_VAL) \
                                       --predict-test-file $(PREDICT_TST) \

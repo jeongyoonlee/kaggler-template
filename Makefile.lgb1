@@ -1,0 +1,63 @@
+include Makefile.feature.j1
+
+N = 10000
+N_LEAF = 200
+LRATE = 0.01
+N_MIN = 8
+SUBCOL = 0.3
+SUBROW = 0.8
+SUBROW_FREQ = 100
+N_STOP = 100
+ALGO_NAME := lgb1
+MODEL_NAME := $(ALGO_NAME)_$(FEATURE_NAME)
+
+METRIC_VAL := $(DIR_METRIC)/$(MODEL_NAME).val.txt
+
+PREDICT_VAL := $(DIR_VAL)/$(MODEL_NAME).val.yht
+PREDICT_TST := $(DIR_TST)/$(MODEL_NAME).tst.yht
+FEATURE_IMP := $(DIR_MODEL)/$(MODEL_NAME).imp.csv
+
+SUBMISSION_TST := $(DIR_SUB)/$(MODEL_NAME).sub.csv
+SUBMISSION_TST_GZ := $(DIR_SUB)/$(MODEL_NAME).sub.csv.gz
+
+all: validation submission
+validation: $(METRIC_VAL)
+submission: $(SUBMISSION_TST)
+retrain: clean_$(ALGO_NAME) submission
+
+$(PREDICT_TST) $(PREDICT_VAL): $(FEATURE_TRN) $(FEATURE_TST) \
+                                   | $(DIR_VAL) $(DIR_TST)
+	./src/train_predict_lgb1.py --train-file $< \
+                              --test-file $(word 2, $^) \
+                              --predict-valid-file $(PREDICT_VAL) \
+                              --predict-test-file $(PREDICT_TST) \
+                              --n-est $(N) \
+                              --n-leaf $(N_LEAF) \
+                              --lrate $(LRATE) \
+                              --n-min $(N_MIN) \
+                              --subcol $(SUBCOL) \
+                              --subrow $(SUBROW) \
+                              --subrow-freq $(SUBROW_FREQ) \
+                              --early-stop $(N_STOP)
+
+$(SUBMISSION_TST_GZ): $(SUBMISSION_TST)
+	gzip $<
+
+$(SUBMISSION_TST): $(PREDICT_TST) $(HEADER) $(ID_TST) | $(DIR_SUB)
+	paste -d, $(lastword $^) $< > $@.tmp
+	cat $(word 2, $^) $@.tmp > $@
+	rm $@.tmp
+
+$(METRIC_VAL): $(PREDICT_VAL) $(Y_TRN) | $(DIR_METRIC)
+	python ./src/evaluate.py --predict-file $< \
+                             --target-file $(lastword $^) > $@
+	cat $@
+
+
+clean:: clean_$(ALGO_NAME)
+
+clean_$(ALGO_NAME):
+	-rm $(METRIC_VAL) $(PREDICT_VAL) $(PREDICT_TST) $(SUBMISSION_TST)
+	find . -name '*.pyc' -delete
+
+.DEFAULT_GOAL := all

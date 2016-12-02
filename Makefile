@@ -6,7 +6,7 @@ PIP_PKGS := numpy scipy pandas scikit-learn
 SED := sed
 
 # directories
-DIR_DATA := data
+DIR_DATA := input
 DIR_BUILD := build
 DIR_FEATURE := $(DIR_BUILD)/feature
 DIR_METRIC := $(DIR_BUILD)/metric
