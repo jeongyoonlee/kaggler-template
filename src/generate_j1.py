@@ -10,17 +10,19 @@ import time
 from kaggler.data_io import load_data, save_data
 from kaggler.preprocessing import LabelEncoder
 
+from const import ID_COL, TARGET_COL
+
 
 def generate_feature(train_file, test_file, train_feature_file,
                      test_feature_file, feature_map_file):
     logging.info('loading raw data')
-    trn = pd.read_csv(train_file, index_col='id')
-    tst = pd.read_csv(test_file, index_col='id')
+    trn = pd.read_csv(train_file, index_col=ID_COL)
+    tst = pd.read_csv(test_file, index_col=ID_COL)
 
-    y = trn.loss.values
+    y = trn[TARGET_COL].values
     n_trn = trn.shape[0]
 
-    trn.drop('loss', axis=1, inplace=True)
+    trn.drop(TARGET_COL, axis=1, inplace=True)
 
     cat_cols = [x for x in trn.columns if trn[x].dtype == np.object]
     num_cols = [x for x in trn.columns if trn[x].dtype != np.object]
@@ -32,7 +34,8 @@ def generate_feature(train_file, test_file, train_feature_file,
 
     logging.info('label encoding categorical variables')
     lbe = LabelEncoder(min_obs=10)
-    df.ix[:, cat_cols] = lbe.fit_transform(df[cat_cols].values)
+    df[cat_cols] = lbe.fit_transform(df[cat_cols])
+    df[num_cols] = df[num_cols].fillna(-1)
 
     with open(feature_map_file, 'w') as f:
         for i, col in enumerate(df.columns):

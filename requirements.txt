@@ -1,8 +1,9 @@
 numpy
 scipy
 pandas
-xgboost
+lightgbm
 keras
 cython
 h5py
+kaggle
 kaggler

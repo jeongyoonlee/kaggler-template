@@ -1,9 +1,8 @@
-# packages
-APT_PKGS := python-pip python-dev
-BREW_PKGS := --python
-PIP_PKGS := numpy scipy pandas scikit-learn
+# XXX: competition name
+COMPETITION := cat-in-the-dat-ii
 
-SED := sed
+# gsed on macOS. sed on LINUX
+SED := gsed
 
 # directories
 DIR_DATA := input
@@ -23,8 +22,6 @@ DIRS := $(DIR_DATA) $(DIR_BUILD) $(DIR_FEATURE) $(DIR_METRIC) $(DIR_MODEL) \
 # data files for training and predict
 DATA_TRN := $(DIR_DATA)/train.csv
 DATA_TST := $(DIR_DATA)/test.csv
-
-
 SAMPLE_SUBMISSION := $(DIR_DATA)/sample_submission.csv
 
 ID_TST := $(DIR_DATA)/id.tst.csv
@@ -33,8 +30,14 @@ HEADER := $(DIR_DATA)/header.csv
 Y_TRN:= $(DIR_FEATURE)/y.trn.txt
 Y_TST:= $(DIR_FEATURE)/y.tst.txt
 
+data: $(DATA_TRN) $(DATA_TST) $(SAMPLE_SUBMISSION)
+
 $(DIRS):
 	mkdir -p $@
+
+$(DATA_TRN) $(DATA_TST) $(SAMPLE_SUBMISSION): | $(DIR_DATA)
+	kaggle competitions download -c $(COMPETITION) -p $(DIR_DATA)
+	find . -name "*.zip" -exec sh -c 'unzip -d `dirname {}` {}' ';'
 
 $(HEADER): $(SAMPLE_SUBMISSION)
 	head -1 $< > $@

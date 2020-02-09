@@ -11,17 +11,19 @@ import time
 from kaggler.data_io import load_data, save_data
 from kaggler.preprocessing import OneHotEncoder, Normalizer
 
+from const import ID_COL, TARGET_COL
+
 
 def generate_feature(train_file, test_file, train_feature_file,
                      test_feature_file, feature_map_file):
     logging.info('loading raw data')
-    trn = pd.read_csv(train_file, index_col='id')
-    tst = pd.read_csv(test_file, index_col='id')
+    trn = pd.read_csv(train_file, index_col=ID_COL)
+    tst = pd.read_csv(test_file, index_col=ID_COL)
 
-    y = trn.loss.values
+    y = trn[TARGET_COL].values
     n_trn = trn.shape[0]
 
-    trn.drop('loss', axis=1, inplace=True)
+    trn.drop(TARGET_COL, axis=1, inplace=True)
 
     cat_cols = [x for x in trn.columns if trn[x].dtype == np.object]
     num_cols = [x for x in trn.columns if trn[x].dtype != np.object]
@@ -33,7 +35,7 @@ def generate_feature(train_file, test_file, train_feature_file,
 
     logging.info('normalizing numeric features')
     nm = Normalizer()
-    df.ix[:, num_cols] = nm.fit_transform(df[num_cols].values)
+    df[num_cols] = nm.fit_transform(df[num_cols])
 
     logging.info('label encoding categorical variables')
     ohe = OneHotEncoder(min_obs=10)

@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-from __future__ import division
-from sklearn.cross_validation import KFold
-from sklearn.metrics import mean_absolute_error as MAE
+from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.metrics import roc_auc_score as AUC
 
 import argparse
-import ctypes
 import logging
 import numpy as np
 import operator
@@ -17,29 +15,6 @@ from const import N_FOLD, SEED
 from kaggler.data_io import load_data
 
 import lightgbm as lgb
-
-
-offset = 200.
-
-
-def logcoshobj(preds, dtrain):
-    labels = dtrain.get_label()
-    grad = np.tanh(preds - labels)
-    hess = 1 - grad * grad
-    return grad, hess
-
-
-def fairobj(labels, preds):
-    c = 2.
-    e = preds - labels
-    grad = c * e / (np.abs(e) + c)
-    hess = c ** 2 / (np.abs(e) + c) ** 2
-    return grad, hess
-
-
-def eval_mae(preds, dataset):
-    labels = dataset.get_label()
-    return 'mae', MAE(np.exp(labels), np.exp(preds)), False
 
 
 def train_predict(train_file, test_file, predict_valid_file, predict_test_file,
@@ -54,48 +29,47 @@ def train_predict(train_file, test_file, predict_valid_file, predict_test_file,
 
     logging.info('Loading training and test data...')
     X, y = load_data(train_file)
-    y = np.log(y + offset)
-
     X_tst, _ = load_data(test_file)
 
     logging.info('Loading CV Ids')
-    cv = KFold(len(y), n_folds=N_FOLD, shuffle=True, random_state=SEED)
+    cv = StratifiedKFold(n_splits=N_FOLD, shuffle=True, random_state=SEED)
 
-    p_val = np.zeros(X.shape[0])
+    params = {'random_state': SEED,
+              'n_jobs': -1,
+              'objective': 'binary',
+              'boosting': 'gbdt',
+              'learning_rate': lrate,
+              'num_leaves': n_leaf,
+              'feature_fraction': subcol,
+              'bagging_fraction': subrow,
+              'bagging_freq': subrow_freq,
+              'verbosity': -1,
+              'min_child_samples': n_min,
+              'metric': 'auc'}
+
+    p = np.zeros(X.shape[0])
     p_tst = np.zeros(X_tst.shape[0])
     n_bests = []
-    for i, (i_trn, i_val) in enumerate(cv, 1):
+    for i, (i_trn, i_val) in enumerate(cv.split(X, y), 1):
         logging.info('Training model #{}'.format(i))
-        watchlist = [(X[i_val], y[i_val])]
+        trn_lgb = lgb.Dataset(X[i_trn], label=y[i_trn])
+        val_lgb = lgb.Dataset(X[i_val], label=y[i_val])
 
         logging.info('Training with early stopping')
-        clf = lgb.LGBMRegressor(n_estimators=n_est,
-                                num_leaves=n_leaf,
-                                learning_rate=lrate,
-                                min_child_samples=n_min,
-                                subsample=subrow,
-                                subsample_freq=subrow_freq,
-                                colsample_bytree=subcol,
-                                objective=fairobj,
-                                nthread=1,
-                                seed=SEED)
-        clf = clf.fit(X[i_trn], y[i_trn], eval_set=watchlist,
-                      eval_metric=eval_mae, early_stopping_rounds=n_stop,
-                      verbose=10)
+        clf = lgb.train(params, trn_lgb, n_est, val_lgb, early_stopping_rounds=n_stop, verbose_eval=100)
         n_best = clf.best_iteration
         n_bests.append(n_best)
         logging.info('best iteration={}'.format(n_best))
 
-        p_val[i_val] = clf.predict(X[i_val])
-        logging.info('CV #{}: {:.4f}'.format(i, MAE(np.exp(y[i_val]),
-                                                    np.exp(p_val[i_val]))))
+        p[i_val] = clf.predict(X[i_val])
+        logging.info('CV #{}: {:.4f}'.format(i, AUC(y[i_val], p[i_val])))
 
         if not retrain:
             p_tst += clf.predict(X_tst) / N_FOLD
 
-    logging.info('CV: {:.4f}'.format(MAE(np.exp(y), np.exp(p_val))))
+    logging.info('CV: {:.4f}'.format(AUC(y, p)))
     logging.info('Saving validation predictions...')
-    np.savetxt(predict_valid_file, np.exp(p_val) - offset, fmt='%.6f', delimiter=',')
+    np.savetxt(predict_valid_file, p, fmt='%.6f', delimiter=',')
 
     if retrain:
         logging.info('Retraining with 100% training data')
@@ -115,7 +89,7 @@ def train_predict(train_file, test_file, predict_valid_file, predict_test_file,
         p_tst = clf.predict(X_tst)
 
     logging.info('Saving test predictions...')
-    np.savetxt(predict_test_file, np.exp(p_tst) - offset, fmt='%.6f', delimiter=',')
+    np.savetxt(predict_test_file, p_tst, fmt='%.6f', delimiter=',')
 
 
 if __name__ == '__main__':
