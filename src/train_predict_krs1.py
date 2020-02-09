@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division, print_function
 from keras.callbacks import EarlyStopping
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation
@@ -7,8 +6,8 @@ from keras.layers.advanced_activations import PReLU
 from keras.utils import np_utils, generic_utils
 from scipy.sparse import csr_matrix, hstack
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
-from sklearn.cross_validation import KFold
-from sklearn.metrics import mean_absolute_error as MAE
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import roc_auc_score as AUC
 
 import argparse
 import logging
@@ -20,11 +19,10 @@ import time
 
 
 from kaggler.data_io import load_data
-from const import N_CLASS, SEED
+from const import N_FOLD, SEED
 
 
 np.random.seed(SEED) # for reproducibility
-offset = 200
 
 
 def batch_generator(X, y, batch_size, shuffle):
@@ -60,29 +58,29 @@ def batch_generatorp(X, batch_size, shuffle):
 
 def nn_model(dims):
     model = Sequential()
-    
-    model.add(Dense(400, input_dim=dims, init='he_normal'))
+
+    model.add(Dense(400, input_dim=dims, kernel_initializer='he_normal'))
     model.add(PReLU())
     model.add(BatchNormalization())
     model.add(Dropout(0.4))
-        
-    model.add(Dense(200, init='he_normal'))
+
+    model.add(Dense(200, kernel_initializer='he_normal'))
     model.add(PReLU())
-    model.add(BatchNormalization())    
+    model.add(BatchNormalization())
     model.add(Dropout(0.2))
-    
-    model.add(Dense(50, init='he_normal'))
+
+    model.add(Dense(50, kernel_initializer='he_normal'))
     model.add(PReLU())
-    model.add(BatchNormalization())    
+    model.add(BatchNormalization())
     model.add(Dropout(0.2))
-    
-    model.add(Dense(1, init='he_normal'))
-    model.compile(loss = 'mae', optimizer = 'adadelta')
+
+    model.add(Dense(1, kernel_initializer='he_normal', activation='sigmoid'))
+    model.compile(loss = 'binary_crossentropy', optimizer = 'adadelta')
     return(model)
 
 
 def train_predict(train_file, test_file, predict_valid_file, predict_test_file,
-                  n_est=100, retrain=True, n_fold=5):
+                  n_est=100, batch_size=1024, retrain=True):
 
     model_name = os.path.splitext(os.path.splitext(os.path.basename(predict_test_file))[0])[0]
 
@@ -92,58 +90,49 @@ def train_predict(train_file, test_file, predict_valid_file, predict_test_file,
 
     logging.info('Loading training and test data...')
     X, y = load_data(train_file)
-    y = np.log(y + offset)
-
     X_tst, _ = load_data(test_file)
 
-    """
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
-    X_tst = scaler.transform(X_tst)
-    """
-
     dims = X.shape[1]
-    logging.info('{} class(es), {} dims'.format(N_CLASS, dims))
+    logging.info('{} dims'.format(dims))
 
     logging.info('Loading CV Ids')
-    cv = KFold(len(y), n_folds=n_fold, shuffle=True, random_state=SEED)
+    cv = StratifiedKFold(n_splits=N_FOLD, shuffle=True, random_state=SEED)
 
-    p_val = np.zeros_like(y)
+    p = np.zeros_like(y)
     p_tst = np.zeros((X_tst.shape[0],))
-    for i, (i_trn, i_val) in enumerate(cv, 1):
+    for i, (i_trn, i_val) in enumerate(cv.split(X, y), 1):
         logging.info('Training model #{}'.format(i))
         clf = nn_model(dims)
         clf.fit_generator(generator=batch_generator(X[i_trn],
                                                     y[i_trn],
-                                                    128,
+                                                    batch_size,
                                                     True),
                           nb_epoch=n_est,
                           samples_per_epoch=X[i_trn].shape[0],
                           verbose=0)
 
-        p_val[i_val] = clf.predict_generator(generator=batch_generatorp(X[i_val], 800, False),
-                                             val_samples=X[i_val].shape[0])[:, 0]
-        logging.info('CV #{}: {:.4f}'.format(i, MAE(np.exp(y[i_val]),
-                                                    np.exp(p_val[i_val]))))
+        p[i_val] = clf.predict_generator(generator=batch_generatorp(X[i_val], batch_size, False),
+                                         val_samples=X[i_val].shape[0])[:, 0]
+        logging.info('CV #{}: {:.4f}'.format(i, AUC(y[i_val], p[i_val])))
 
         if not retrain:
-            p_tst += clf.predict_generator(generator=batch_generatorp(X_tst, 800, False),
-                                           val_samples=X_tst.shape[0])[:, 0] / n_fold
+            p_tst += clf.predict_generator(generator=batch_generatorp(X_tst, batch_size, False),
+                                           val_samples=X_tst.shape[0])[:, 0] / N_FOLD
 
     logging.info('Saving validation predictions...')
-    logging.info('CV: {:.4f}'.format(MAE(np.exp(y), np.exp(p_val))))
-    np.savetxt(predict_valid_file, np.exp(p_val) - offset, fmt='%.6f', delimiter=',')
+    logging.info('CV: {:.4f}'.format(AUC(y, p)))
+    np.savetxt(predict_valid_file, p, fmt='%.6f', delimiter=',')
 
     if retrain:
         logging.info('Retraining with 100% training data')
         clf = nn_model(dims)
-        clf.fit_generator(generator=batch_generator(X, Y, 128, True),
+        clf.fit_generator(generator=batch_generator(X, Y, batch_size, True),
                           nb_epoch=n_est)
-        p_tst = clf.predict_generator(generator=batch_generatorp(X_tst, 800, False),
+        p_tst = clf.predict_generator(generator=batch_generatorp(X_tst, batch_size, False),
                                       val_samples=X_tst.shape[0])[:, 0]
 
     logging.info('Saving normalized test predictions...')
-    np.savetxt(predict_test_file, np.exp(p_tst) - offset, fmt='%.6f', delimiter=',')
+    np.savetxt(predict_test_file, p_tst, fmt='%.6f', delimiter=',')
 
 
 if __name__ == '__main__':
@@ -170,6 +159,7 @@ if __name__ == '__main__':
                   predict_valid_file=args.predict_valid_file,
                   predict_test_file=args.predict_test_file,
                   n_est=args.n_est,
+                  batch_size=args.batch_size,
                   retrain=args.retrain)
     logging.info('finished ({:.2f} min elasped)'.format((time.time() - start) /
                  60.))

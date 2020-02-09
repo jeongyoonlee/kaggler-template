@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-from __future__ import division
-from sklearn.metrics import mean_absolute_error as MAE
+from sklearn.metrics import roc_auc_score as AUC
 import argparse
 import json
 import numpy as np
@@ -19,4 +18,4 @@ if __name__ == '__main__':
     y = np.loadtxt(args.target_file, delimiter=',')
 
     model_name = os.path.splitext(os.path.splitext(os.path.basename(args.predict_file))[0])[0]
-    print('{}\t{:.6f}'.format(model_name, MAE(y, p)))
+    print('{}\t{:.6f}'.format(model_name, AUC(y, p)))

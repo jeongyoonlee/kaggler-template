@@ -1,14 +1,14 @@
-include Makefile.feature.esb1
+include Makefile.feature.j1
 
 N = 10000
-N_LEAF = 200
-LRATE = 0.1
-N_MIN = 10
-SUBCOL = 0.8
+N_LEAF = 128
+LRATE = 0.05
+N_MIN = 25
+SUBCOL = 0.5
 SUBROW = 0.7
 SUBROW_FREQ = 1
 N_STOP = 20
-ALGO_NAME := lgb1
+ALGO_NAME := lgb2
 MODEL_NAME := $(ALGO_NAME)_$(FEATURE_NAME)
 
 METRIC_VAL := $(DIR_METRIC)/$(MODEL_NAME).val.txt

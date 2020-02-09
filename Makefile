@@ -24,6 +24,8 @@ DATA_TRN := $(DIR_DATA)/train.csv
 DATA_TST := $(DIR_DATA)/test.csv
 SAMPLE_SUBMISSION := $(DIR_DATA)/sample_submission.csv
 
+LABEL_IDX = 25
+
 ID_TST := $(DIR_DATA)/id.tst.csv
 HEADER := $(DIR_DATA)/header.csv
 
@@ -49,7 +51,7 @@ $(Y_TST): $(SAMPLE_SUBMISSION) | $(DIR_FEATURE)
 	cut -d, -f2 $< | tail -n +2 > $@
 
 $(Y_TRN): $(DATA_TRN) | $(DIR_FEATURE)
-	cut -d, -f132 $< | tail -n +2 > $@
+	cut -d, -f$(LABEL_IDX) $< | tail -n +2 > $@
 
 # cleanup
 clean::

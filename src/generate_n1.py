@@ -35,11 +35,11 @@ def generate_feature(train_file, test_file, train_feature_file,
 
     logging.info('normalizing numeric features')
     nm = Normalizer()
-    df[num_cols] = nm.fit_transform(df[num_cols])
+    df[num_cols] = nm.fit_transform(df[num_cols].values)
 
     logging.info('label encoding categorical variables')
     ohe = OneHotEncoder(min_obs=10)
-    X_ohe = ohe.fit_transform(df[cat_cols].values)
+    X_ohe = ohe.fit_transform(df[cat_cols])
     ohe_cols = ['ohe{}'.format(i) for i in range(X_ohe.shape[1])]
 
     X = sparse.hstack((df[num_cols].values, X_ohe), format='csr')
