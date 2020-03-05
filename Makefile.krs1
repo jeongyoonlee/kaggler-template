@@ -18,7 +18,7 @@ submission: $(SUBMISSION_TST)
 retrain: clean_$(ALGO_NAME) submission
 
 submit: $(SUBMISSION_TST)
-	kaggle competitions -c $(COMPETITION) -f $< -m $(MODEL_NAME)
+	kaggle competitions submit -c $(COMPETITION) -f $< -m $(MODEL_NAME)
 
 $(PREDICT_TST) $(PREDICT_VAL): $(FEATURE_TRN) $(FEATURE_TST) \
                                    | $(DIR_VAL) $(DIR_TST)
